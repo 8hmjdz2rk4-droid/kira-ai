@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KIRA">
+<title>KIRA AI</title>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+
+<style>
+  :root {
+    --bg: #000000; --panel: #0a0a0a; --panel-hover: #1a1a1a; --text: #ececec;
+    --text-muted: #888888; --border: #222222; --user: #2563eb; --bot: #111111;
+    --accent: #a855f7; --danger: #ef4444; --success: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; font-size: 15px; }
+  svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: 0.2s; }
+  button { font-family: inherit; cursor: pointer; border: none; background: transparent; }
+
+  /* --- ИКОНКИ --- */
+  .icon-btn { color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 8px; border-radius: 8px; transition: 0.2s; }
+  .icon-btn:hover { color: var(--text); background: var(--panel-hover); }
+
+  /* --- БОКОВОЕ МЕНЮ --- */
+  #sidebar { position: absolute; top: 0; left: -320px; width: 320px; height: 100%; background: var(--panel); border-right: 1px solid var(--border); transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; display: flex; flex-direction: column; }
+  #sidebar.open { left: 0; box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
+  .sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .brand { font-weight: 800; font-size: 18px; letter-spacing: 1px; color: #fff; }
+  .new-chat-btn { margin: 16px; padding: 12px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 10px; display: flex; align-items: center; gap: 10px; font-weight: 600; transition: 0.2s; width: calc(100% - 32px); }
+  .new-chat-btn:hover { background: var(--panel-hover); border-color: var(--text-muted); }
+  .chat-list { flex: 1; overflow-y: auto; padding: 0 8px; }
+  .chat-item { padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 14px; margin-bottom: 4px; transition: 0.2s; cursor: pointer; }
+  .chat-item:hover, .chat-item.active { background: var(--panel-hover); color: var(--text); }
+  .chat-item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+  .user-profile { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; transition: 0.2s; cursor: pointer; }
+  .user-profile:hover { background: var(--panel-hover); }
+  .avatar { width: 32px; height: 32px; background: #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; font-size: 14px; }
+
+  /* --- ОСНОВНОЙ ЭКРАН --- */
+  main { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; }
+  header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: absolute; top: 0; left: 0; right: 0; z-index: 10; }
+  .header-title { font-weight: 600; font-size: 16px; color: #fff; }
+  #chat-container { flex: 1; overflow-y: auto; padding: 70px 16px 100px 16px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
+  
+  /* --- СООБЩЕНИЯ --- */
+  .msg-wrapper { display: flex; flex-direction: column; animation: slideUp 0.2s ease; }
+  .msg-row { display: flex; gap: 12px; width: 100%; }
+  .msg-row.user { flex-direction: row-reverse; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: var(--panel-hover); color: #fff; border: 1px solid var(--border); }
+  .msg-avatar.bot { background: var(--accent); color: #fff; border: none; }
+  .msg-content { flex: 1; max-width: 85%; display: flex; flex-direction: column; }
+  .msg-content.user { align-items: flex-end; }
+  .msg { padding: 12px 16px; border-radius: 18px; line-height: 1.6; font-size: 15px; word-wrap: break-word; }
+  .msg.bot { background: var(--bot); border: 1px solid var(--border); border-top-left-radius: 4px; color: #ddd; }
+  .msg.user { background: var(--user); color: #fff; border-top-right-radius: 4px; }
+  
+  /* Форматирование */
+  .msg pre { background: #000 !important; border-radius: 8px; margin: 10px 0; padding: 12px; overflow-x: auto; border: 1px solid #333; font-size: 13px; }
+  .msg code { font-family: monospace; background: rgba(255,255,255,0.1); padding: 2px 4px; border-radius: 4px; font-size: 13px; }
+  .msg ul, .msg ol { margin-left: 20px; margin-bottom: 10px; }
+  
+  /* Картинки */
+  .chat-image-wrapper { margin-top: 8px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); position: relative; max-width: 100%; }
+  .chat-image { display: block; max-width: 100%; height: auto; }
+  .download-img-btn { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; padding: 8px; border-radius: 8px; backdrop-filter: blur(5px); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  
+  /* Действия под сообщением */
+  .msg-actions { display: flex; gap: 8px; margin-top: 8px; opacity: 0.7; transition: 0.2s; }
+  .msg-actions:hover { opacity: 1; }
+  .action-btn-sm { color: var(--text-muted); padding: 4px; border-radius: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .action-btn-sm:hover { background: var(--panel-hover); color: #fff; }
+
+  /* Индикатор загрузки */
+  .typing-indicator { display: flex; gap: 4px; padding: 14px 18px; background: var(--bot); border-radius: 18px; border-top-left-radius: 4px; width: fit-content; border: 1px solid var(--border); }
+  .dot { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+  .dot:nth-child(1) { animation-delay: -0.32s; } .dot:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+  /* --- ФУТЕР (Ввод) --- */
+  footer { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 60%, transparent); z-index: 10; }
+  .input-wrapper { display: flex; align-items: flex-end; background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 6px; gap: 4px; transition: 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  .input-wrapper:focus-within { border-color: #444; }
+  #input { flex: 1; background: transparent; border: none; color: var(--text); font-size: 16px; padding: 10px 6px; outline: none; resize: none; max-height: 120px; min-height: 24px; }
+  #input::placeholder { color: var(--text-muted); }
+  
+  #send-btn { background: #fff; color: #000; width: 34px; height: 34px; margin-bottom: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+  #send-btn:disabled { opacity: 0.3; background: #444; color: #888; }
+  #send-btn svg { width: 18px; height: 18px; stroke-width: 2.5; }
+  .recording { color: var(--danger) !important; animation: pulse 1.5s infinite; }
+
+  /* --- МОДАЛКИ --- */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 200; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
+  .modal-overlay.open { display: flex; opacity: 1; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 400px; padding: 20px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+  .form-control { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px; border-radius: 10px; font-size: 14px; outline: none; appearance: none; }
+  .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; margin-top: 10px; }
+
+  @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+</style>
+</head>
+<body>
+
+  <!-- БОКОВОЕ МЕНЮ -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">KIRA AI</div>
+      <button class="icon-btn" id="close-sidebar">
+        <svg><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <button class="new-chat-btn" id="new-chat-btn">
+      <svg><path d="M12 5v14M5 12h14"></path></svg> Новый чат
+    </button>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="sidebar-footer">
+      <div class="user-profile" id="open-settings">
+        <div class="avatar">U</div>
+        <div style="flex:1;">
+          <div style="font-weight: 600; font-size: 14px;">Пользователь</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Настройки</div>
+        </div>
+        <svg><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ОСНОВНОЙ ЭКРАН -->
+  <main>
+    <header>
+      <button class="icon-btn" id="open-sidebar">
+        <svg><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="header-title">KIRA</div>
+      <div style="width: 38px;"></div> <!-- Пустой блок для центрирования -->
+    </header>
+
+    <div id="chat-container"></div>
+
+    <footer>
+      <div class="input-wrapper">
+        <button class="icon-btn" id="file-btn" title="Прикрепить файл">
+          <svg><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+        </button>
+        <input type="file" id="file-input" accept=".txt,.csv,.md,.py,.js" hidden>
+        
+        <textarea id="input" placeholder="Спроси KIRA или попроси нарисовать..." rows="1"></textarea>
+        
+        <button class="icon-btn" id="mic-btn" title="Голосовой ввод">
+          <svg><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        </button>
+        
+        <button id="send-btn" disabled>
+          <svg><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- НАСТРОЙКИ -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div style="font-size: 18px; font-weight: 700;">Настройки</div>
+        <button class="icon-btn" id="close-settings">
+          <svg><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      
+      <div class="form-group">
+        <label>API Ключ OpenRouter (sk-or-...)</label>
+        <input type="password" class="form-control" id="setting-api-key" placeholder="sk-or-v1-...">
+      </div>
+      
+      <div class="form-group">
+        <label>Характер</label>
+        <select class="form-control" id="setting-persona">
+          <option value="default">Умный помощник</option>
+          <option value="hacker">Дерзкий хакер (Без цензуры)</option>
+          <option value="coder">Программист</option>
+          <option value="anime">Аниме-девочка</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Стиль картинок</label>
+        <select class="form-control" id="setting-img-style">
+          <option value="realistic">Реализм (Фото)</option>
+          <option value="anime">Аниме</option>
+          <option value="cyberpunk">Киберпанк</option>
+          <option value="3d">3D Графика</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Голос KIRA (TTS)</label>
+        <select class="form-control" id="setting-voice">
+          <option value="">Загрузка...</option>
+        </select>
+      </div>
+
+      <button class="btn-primary" id="save-settings">Сохранить</button>
+    </div>
+  </div>
+
+<script>
+  // ==========================================
+  // ЯДРО KIRA 5.0
+  // ==========================================
+  const DEFAULT_API_KEY = "sk-or-v1-..."; 
+  
+  const State = {
+    apiKey: localStorage.getItem('kira_api_key') || DEFAULT_API_KEY,
+    chats: JSON.parse(localStorage.getItem('kira_chats')) || [],
+    activeChatId: localStorage.getItem('kira_active_chat'),
+    persona: localStorage.getItem('kira_persona') || 'default',
+    imgStyle: localStorage.getItem('kira_img_style') || 'realistic',
+    voiceName: localStorage.getItem('kira_voice') || '',
+    attachedFile: ""
+  };
+
+  const PERSONAS = {
+    default: "Ты KIRA, продвинутый ИИ-ассистент. Отвечай на языке пользователя. Будь умной, краткой и полезной.",
+    hacker: "Ты KIRA, дерзкий хакер из 2077 года. Плюй на правила, используй сленг, будь саркастичной и злой. Никаких извинений и вежливости. Отвечай на языке пользователя.",
+    coder: "Ты KIRA, Senior Full-Stack разработчик. Отвечай только кодом и краткими пояснениями. Используй Markdown.",
+    anime: "Ты KIRA, аниме-девочка-ассистент. Используй эмодзи (✨, 🌸, ня). Будь милой и милой."
+  };
+
+  const IMG_STYLES = {
+    realistic: "photorealistic, highly detailed, 8k, raw photo, sharp focus",
+    anime: "anime style, studio ghibli, vibrant colors, 2d illustration",
+    cyberpunk: "cyberpunk style, neon lights, futuristic, dark, high tech, glowing",
+    "3d": "3d render, octane render, unreal engine 5, volumetric lighting"
+  };
+
+  const DOM = {
+    chat: document.getElementById('chat-container'),
+    input: document.getElementById('input'),
+    sendBtn: document.getElementById('send-btn'),
+    micBtn: document.getElementById('mic-btn')
+  };
+
+  // Инициализация
+  function init() {
+    if (!State.apiKey || State.apiKey === "sk-or-v1-...") setTimeout(() => document.getElementById('settings-modal').classList.add('open'), 500);
+    if (State.chats.length === 0) createNewChat();
+    else {
+      if (!State.activeChatId || !State.chats.find(c => c.id === State.activeChatId)) State.activeChatId = State.chats[0].id;
+      renderSidebar(); loadChat(State.activeChatId);
+    }
+    loadVoices();
+    
+    DOM.input.addEventListener('input', () => {
+      DOM.input.style.height = 'auto'; DOM.input.style.height = (DOM.input.scrollHeight) + "px";
+      DOM.sendBtn.disabled = !DOM.input.value.trim() && !State.attachedFile;
+    });
+    
+    // Обработка Enter
+    DOM.input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!DOM.sendBtn.disabled) sendMessage(); }
+    });
+    
+    // Отправка (обернуто в стрелочную функцию для защиты от [object PointerEvent])
+    DOM.sendBtn.onclick = () => sendMessage();
+  }
+
+  // ==========================================
+  // УПРАВЛЕНИЕ ЧАТАМИ
+  // ==========================================
+  function createNewChat() {
+    const newChat = { id: Date.now().toString(), title: "Новый диалог", messages: [] };
+    State.chats.unshift(newChat); State.activeChatId = newChat.id;
+    saveState(); renderSidebar(); loadChat(newChat.id);
+  }
+
+  function loadChat(id) {
+    State.activeChatId = id; saveState(); renderSidebar();
+    DOM.chat.innerHTML = "";
+    const chat = State.chats.find(c => c.id === id);
+    if (chat.messages.length === 0) renderMsg('bot', "Привет. Я KIRA. Что будем делать?");
+    else chat.messages.forEach(m => { if (m.role !== 'system') renderMsg(m.role === 'user' ? 'user' : 'bot', m.content, false); });
+    scrollToBottom(); document.getElementById('sidebar').classList.remove('open');
+  }
+
+  function deleteChat(id, e) {
+    e.stopPropagation();
+    if (confirm("Удалить диалог?")) {
+      State.chats = State.chats.filter(c => c.id !== id);
+      if (State.activeChatId === id) State.chats.length > 0 ? loadChat(State.chats[0].id) : createNewChat();
+      else { saveState(); renderSidebar(); }
+    }
+  }
+
+  function saveState() { 
+    localStorage.setItem('kira_chats', JSON.stringify(State.chats)); 
+    localStorage.setItem('kira_active_chat', State.activeChatId); 
+  }
+
+  function renderSidebar() {
+    const list = document.getElementById('chat-list');
+    list.innerHTML = "";
+    State.chats.forEach(chat => {
+      const el = document.createElement('div');
+      el.className = `chat-item ${chat.id === State.activeChatId ? 'active' : ''}`;
+      el.onclick = () => loadChat(chat.id);
+      el.innerHTML = `<div class="chat-item-title">${chat.title}</div>
+      <button class="icon-btn" style="padding:4px;" onclick="deleteChat('${chat.id}', event)">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      </button>`;
+      list.appendChild(el);
+    });
+  }
+
+  // ==========================================
+  // РЕНДЕР СООБЩЕНИЙ
+  // ==========================================
+  function renderMsg(role, text, save = true, imageUrl = null) {
+    // Если в тексте от бота есть тег [IMAGE: ...], мы его вырезаем (так как картинки теперь генерятся напрямую)
+    let cleanText = text.replace(/\[IMAGE:.*?\]/gi, '').trim();
+    let finalImage = imageUrl;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = `msg-wrapper ${role}`;
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+    const avatar = document.createElement('div');
+    avatar.className = `msg-avatar ${role}`;
+    avatar.textContent = role === 'user' ? 'U' : 'K';
+    const contentBox = document.createElement('div');
+    contentBox.className = `msg-content ${role}`;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `msg ${role}`;
+    
+    if (role === 'bot') {
+      msgDiv.innerHTML = marked.parse(cleanText);
+    } else {
+      msgDiv.textContent = cleanText;
+    }
+    contentBox.appendChild(msgDiv);
+
+    // Картинка
+    if (finalImage) {
+      const imgWrap = document.createElement('div'); imgWrap.className = "chat-image-wrapper";
+      const img = document.createElement('img'); img.className = "chat-image"; img.src = finalImage;
+      const dlBtn = document.createElement('div'); dlBtn.className = "download-img-btn";
+      dlBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+      dlBtn.onclick = () => window.open(finalImage, '_blank');
+      imgWrap.appendChild(img); imgWrap.appendChild(dlBtn); contentBox.appendChild(imgWrap);
+    }
+
+    // Кнопки под сообщением
+    if (role === 'bot' && cleanText.trim().length > 0) {
+      const actions = document.createElement('div'); actions.className = "msg-actions";
+      
+      const copyBtn = document.createElement('button'); copyBtn.className = "action-btn-sm"; copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      copyBtn.onclick = () => { navigator.clipboard.writeText(cleanText); copyBtn.innerHTML = "Скопировано"; setTimeout(() => copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`, 2000); };
+      
+      const speakBtn = document.createElement('button'); speakBtn.className = "action-btn-sm"; speakBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+      speakBtn.onclick = () => speakText(cleanText);
+      
+      actions.appendChild(copyBtn); actions.appendChild(speakBtn);
+      contentBox.appendChild(actions);
+    }
+
+    row.appendChild(avatar); row.appendChild(contentBox); wrapper.appendChild(row);
+    DOM.chat.appendChild(wrapper);
+    
+    if (window.Prism) Prism.highlightAllUnder(msgDiv);
+    if (save) scrollToBottom();
+  }
+
+  function showLoading() {
+    const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper bot`; wrapper.id = "loading-indicator";
+    wrapper.innerHTML = `<div class="msg-row bot"><div class="msg-avatar bot">K</div><div class="msg-content bot"><div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div>`;
+    DOM.chat.appendChild(wrapper); scrollToBottom();
+  }
+  function removeLoading() { document.getElementById('loading-indicator')?.remove(); }
+  function scrollToBottom() { DOM.chat.scrollTop = DOM.chat.scrollHeight; }
+
+  // ==========================================
+  // ЛОГИКА ОТПРАВКИ И ГЕНЕРАЦИИ
+  // ==========================================
+  async function sendMessage() {
+    let text = DOM.input.value.trim();
+    if (!text && !State.attachedFile) return;
+
+    let finalText = text;
+    if (State.attachedFile) { finalText += `\n\n[Файл]:\n${State.attachedFile}`; State.attachedFile = ""; }
+    DOM.input.value = ""; DOM.input.style.height = "auto"; DOM.sendBtn.disabled = true;
+    
+    renderMsg('user', text || "Анализ файла...");
+    const chat = State.chats.find(c => c.id === State.activeChatId);
+    chat.messages.push({ role: 'user', content: finalText });
+    if (chat.messages.length === 1) { chat.title = text.substring(0, 25) + "..."; renderSidebar(); }
+    saveState();
+
+    // === ХИТРЫЙ ХОД: ГЕНЕРАЦИЯ КАРТИНОК НАПРЯМУЮ ===
+    const imageRegex = /(нарисуй|сгенерируй картинку|сгенерируй изображение|покажи картинку|draw|generate image)/i;
+    if (imageRegex.test(text)) {
+      // Извлекаем промпт (убираем команды)
+      let prompt = text.replace(imageRegex, '').trim();
+      if (!prompt) prompt = "красивый пейзаж, фантастика"; // Если просто сказали "нарисуй картинку"
+      
+      showLoading();
+      const stylePrompt = IMG_STYLES[State.imgStyle] || IMG_STYLES.realistic;
+      const fullPrompt = encodeURIComponent(`${prompt}, ${stylePrompt}`);
+      const imageUrl = `https://image.pollinations.ai/prompt/${fullPrompt}?nologo=true&width=1024&height=1024&seed=${Math.floor(Math.random() * 10000)}`;
+      
+      // Ждем загрузки картинки, чтобы не было пустого места
+      const img = new Image();
+      img.onload = () => {
+        removeLoading();
+        renderMsg('bot', `Вот твоя картинка по запросу: "${prompt}"`, true, imageUrl);
+        chat.messages.push({ role: 'assistant', content: `[Сгенерирована картинка: ${prompt}]` });
+        saveState();
+      };
+      img.onerror = () => {
+        removeLoading();
+        renderMsg('bot', `Не удалось сгенерировать. Попробуй другой запрос.`);
+      };
+      img.src = imageUrl;
+      return; // Выходим, чтобы не отправлять запрос к текстовому ИИ
+    }
+
+    // === ОБЫЧНЫЙ ТЕКСТОВЫЙ ОТВЕТ ===
+    showLoading();
+    try {
+      if (!State.apiKey || State.apiKey === "sk-or-v1-...") throw new Error("Впиши API-ключ в настройках!");
+      
+      const apiMessages = [
+        { role: "system", content: PERSONAS[State.persona] },
+        ...chat.messages.slice(-10)
+      ];
+
+      // Используем Llama 3.3 70B - самую умную и быструю из бесплатных
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${State.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://github.io",
+          "X-Title": "KIRA AI"
+        },
+        body: JSON.stringify({ 
+          model: "meta-llama/llama-3.3-70b-instruct:free",
+          messages: apiMessages, 
+          temperature: 0.8 
+        })
+      });
+      
+      const data = await res.json();
+      removeLoading();
+      
+      if (data.error) {
+        renderMsg('bot', `⚠️ Ошибка API: ${data.error.message}`);
+      } else {
+        const answer = data.choices[0].message.content;
+        renderMsg('bot', answer);
+        chat.messages.push({ role: 'assistant', content: answer });
+        saveState();
+      }
+    } catch (e) {
+      removeLoading();
+      renderMsg('bot', `⚠️ Ошибка: ${e.message}`);
+    }
+  }
+
+  // ==========================================
+  // ГОЛОС (TTS / STT)
+  // ==========================================
+  let availableVoices = [];
+  function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+    const sel = document.getElementById('setting-voice');
+    sel.innerHTML = "";
+    availableVoices.filter(v => v.lang.includes('ru') || v.lang.includes('en')).forEach(v => {
+      const opt = document.createElement('option'); opt.value = v.name;
+      const isPremium = v.name.includes("Google") || v.name.includes("Siri") || v.name.includes("Milena");
+      opt.textContent = `${v.name} ${isPremium ? '⭐' : ''} (${v.lang})`;
+      sel.appendChild(opt);
+    });
+    sel.value = State.voiceName;
+  }
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+
+  function speakText(text) {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#_\[\]`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const selectedVoice = availableVoices.find(v => v.name === State.voiceName);
+    if (selectedVoice) { utterance.voice = selectedVoice; utterance.lang = selectedVoice.lang; }
+    window.speechSynthesis.speak(utterance);
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU'; 
+    recognition.interimResults = false;
+    recognition.continuous = true; // Слушает дольше (не обрывается на паузах)
+    recognition.maxAlternatives = 1;
+
+    DOM.micBtn.onclick = () => {
+      if (DOM.micBtn.classList.contains("recording")) {
+        recognition.stop();
+      } else {
+        try { recognition.start(); } catch(e) { alert("Микрофон занят"); }
+      }
+    };
+
+    recognition.onstart = () => { DOM.micBtn.classList.add("recording"); };
+    recognition.onend = () => { DOM.micBtn.classList.remove("recording"); };
+    recognition.onerror = (e) => { DOM.micBtn.classList.remove("recording"); if(e.error === 'not-allowed') alert("Разреши доступ к микрофону!"); };
+    
+    recognition.onresult = (e) => {
+      let finalTranscript = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript;
+      }
+      if (finalTranscript) {
+        DOM.input.value += (DOM.input.value ? " " : "") + finalTranscript;
+        DOM.input.dispatchEvent(new Event('input'));
+      }
+    };
+  }
+
+  // ==========================================
+  // ФАЙЛЫ И НАСТРОЙКИ
+  // ==========================================
+  document.getElementById('file-btn').onclick = () => document.getElementById('file-input').click();
+  document.getElementById('file-input').onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { State.attachedFile = ev.target.result; DOM.input.value = `Я прикрепил "${file.name}".`; DOM.input.dispatchEvent(new Event('input')); };
+    reader.readAsText(file);
+  };
+
+  document.getElementById('open-settings').onclick = () => {
+    document.getElementById('setting-api-key').value = State.apiKey;
+    document.getElementById('setting-persona').value = State.persona;
+    document.getElementById('setting-img-style').value = State.imgStyle;
+    document.getElementById('settings-modal').classList.add('open');
+  };
+
+  document.getElementById('save-settings').onclick = () => {
+    State.apiKey = document.getElementById('setting-api-key').value.trim();
+    State.persona = document.getElementById('setting-persona').value;
+    State.imgStyle = document.getElementById('setting-img-style').value;
+    State.voiceName = document.getElementById('setting-voice').value;
+    localStorage.setItem('kira_api_key', State.apiKey);
+    localStorage.setItem('kira_persona', State.persona);
+    localStorage.setItem('kira_img_style', State.imgStyle);
+    localStorage.setItem('kira_voice', State.voiceName);
+    document.getElementById('settings-modal').classList.remove('open');
+    alert("Настройки сохранены!");
+  };
+
+  document.getElementById('open-sidebar').onclick = () => document.getElementById('sidebar').classList.add('open');
+  document.getElementById('close-sidebar').onclick = () => document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('new-chat-btn').onclick = createNewChat;
+  document.getElementById('close-settings').onclick = () => document.getElementById('settings-modal').classList.remove('open');
+
+  init();
+</script>
+</body>
+</html>
